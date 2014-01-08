@@ -64,8 +64,7 @@
     dLon = lon2 - lon1;
     if (dLat < 1 && dLat > -1 && dLon < 1 && dLon > -1) {
       // Inside of 1° we can pretty much ignore curves
-      // We also only need a comparable value, so no need for Math.sqrt or converting to km
-      return dLat * dLat + dLon * dLon;
+      return Math.sqrt(dLat * dLat + dLon * dLon);
     }
 
     // Too big to be considered
@@ -73,12 +72,11 @@
   }
 
   function findCity(lat, lon) {
-    var i, city, d, minD = 10000, rt2;
+    var i, city, d, minD = 10000;
     if (cityCache[lat + "," + lon] !== undefined) {
       return cityCache[lat + "," + lon];
     }
 
-    rt2 = Math.sqrt(2);
 
     for (i = 0; i < cityData.cities.length; i++) {
       /**
@@ -86,7 +84,7 @@
        * L2 distance.
        */
       d = Math.abs(lat - cityData.cities[i][1]) + Math.abs(lon - cityData.cities[i][2]);
-      if ((rt2 * d) < minD) {
+      if (d < minD) {
           d = lazyDistance(lat, lon, cityData.cities[i][1], cityData.cities[i][2]);
           if (d !== false && d < minD) {
             city = cityData.cities[i];
@@ -256,8 +254,8 @@
           // latitude and longitudes are passed as strings.
           // coerce to numbers for type performance of calculations
           for (i=0; i<cityData.cities.length; i++) {
-            cityData.cities[i][1] = parseFloat(cityData.cities[i][1]);
-            cityData.cities[i][2] = parseFloat(cityData.cities[i][2]);
+            cityData.cities[i][1] = cityData.cities[i][1] + 0.0;
+            cityData.cities[i][2] = cityData.cities[i][2] + 0.0;
           }
         } else {
           con.log("Couldn't fetch city data, no geolocation possible.");
