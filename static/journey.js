@@ -73,15 +73,25 @@
   }
 
   function findCity(lat, lon) {
-    var i, city, d, minD = 10000;
+    var i, city, d, minD = 10000, rt2;
     if (cityCache[lat + "," + lon] !== undefined) {
       return cityCache[lat + "," + lon];
     }
+
+    rt2 = Math.sqrt(2);
+
     for (i = 0; i < cityData.cities.length; i++) {
-      d = lazyDistance(lat, lon, cityData.cities[i][1], cityData.cities[i][2]);
-      if (d !== false && d < minD) {
-        city = cityData.cities[i];
-        minD = d;
+      /**
+       * Try manhattan distance first, which gives an upper bound on the
+       * L2 distance.
+       */
+      d = Math.abs(lat - cityData.cities[i][1]) + Math.abs(lon - cityData.cities[i][2]);
+      if ((rt2 * d) < minD) {
+          d = lazyDistance(lat, lon, cityData.cities[i][1], cityData.cities[i][2]);
+          if (d !== false && d < minD) {
+            city = cityData.cities[i];
+            minD = d;
+          }
       }
     }
     if (!city) {
@@ -129,52 +139,57 @@
   }
 
   function cityStats() {
-    var lat, lon, d, time1, time2, city, cityKey, cityStat, countryStat;
-    lat = Math.round(locations[currentStat].latitudeE7 / 10000) / 1000;
-    lon = Math.round(locations[currentStat].longitudeE7 / 10000) / 1000;
+    var lat, lon, d, time1, time2, city, cityKey, cityStat, countryStat, its;
+      for (its=0; its<100; its++) {
+        lat = Math.round(locations[currentStat].latitudeE7 / 10000) / 1000;
+        lon = Math.round(locations[currentStat].longitudeE7 / 10000) / 1000;
 
-    if (currentStat === 0) {
-      time1 = parseInt(locations[currentStat].timestampMs, 10);
-    } else {
-      time1 = parseInt(locations[currentStat - 1].timestampMs, 10);
-    }
-    if (currentStat === locations.length - 1) {
-      time2 = parseInt(locations[currentStat].timestampMs, 10);
-    } else {
-      time2 = parseInt(locations[currentStat + 1].timestampMs, 10);
-    }
-    d = (time1 - time2) / 2;
+        if (currentStat === 0) {
+          time1 = parseInt(locations[currentStat].timestampMs, 10);
+        } else {
+          time1 = parseInt(locations[currentStat - 1].timestampMs, 10);
+        }
+        if (currentStat === locations.length - 1) {
+          time2 = parseInt(locations[currentStat].timestampMs, 10);
+        } else {
+          time2 = parseInt(locations[currentStat + 1].timestampMs, 10);
+        }
+        d = (time1 - time2) / 2;
 
-    city = findCity(lat, lon);
-    cityKey = city[0] + "/" + (city[3] || "");
-    cityStat = cityLookup[cityKey];
-    if (!cityStat) {
-      cityStat = {
-        "city": city[0],
-        "country": cityData.countries[city[3]] || "Unknown country",
-        "time": 0
-      };
-      cityLookup[cityKey] = cityStat;
-      cities.push(cityStat);
+        city = findCity(lat, lon);
+        cityKey = city[0] + "/" + (city[3] || "");
+        cityStat = cityLookup[cityKey];
+        if (!cityStat) {
+          cityStat = {
+            "city": city[0],
+            "country": cityData.countries[city[3]] || "Unknown country",
+            "time": 0
+          };
+          cityLookup[cityKey] = cityStat;
+          cities.push(cityStat);
 
-      countryStat = countryLookup[cityStat.country];
-      if (!countryStat) {
-        countryStat = {
-          "country": cityStat.country,
-          "time": 0
-        };
-        countryLookup[cityStat.country] = countryStat;
-        countries.push(countryStat);
+          countryStat = countryLookup[cityStat.country];
+          if (!countryStat) {
+            countryStat = {
+              "country": cityStat.country,
+              "time": 0
+            };
+            countryLookup[cityStat.country] = countryStat;
+            countries.push(countryStat);
+          }
+        } else {
+          countryStat = countryLookup[cityStat.country];
+        }
+        cityStat.time += d;
+        countryStat.time += d;
+        if (currentStat % 100 === 0) {
+          displayStats(false);
+        }
+        currentStat += 1;
+        if (currentStat == locations.length) {
+            break;
+        }
       }
-    } else {
-      countryStat = countryLookup[cityStat.country];
-    }
-    cityStat.time += d;
-    countryStat.time += d;
-    if (currentStat % 100 === 0) {
-      displayStats(false);
-    }
-    currentStat += 1;
     if (currentStat < locations.length) {
       global.setTimeout(cityStats, 0);
     } else {
@@ -231,12 +246,19 @@
   }
 
   function start() {
-    var xhr = new global.XMLHttpRequest();
+    var xhr = new global.XMLHttpRequest(), i;
 
     xhr.onreadystatechange = function () {
       if (xhr.readyState == 4) {
         if (xhr.status >= 200 && xhr.status <= 304) {
           cityData = JSON.parse(xhr.responseText);
+
+          // latitude and longitudes are passed as strings.
+          // coerce to numbers for type performance of calculations
+          for (i=0; i<cityData.cities.length; i++) {
+            cityData.cities[i][1] = parseFloat(cityData.cities[i][1]);
+            cityData.cities[i][2] = parseFloat(cityData.cities[i][2]);
+          }
         } else {
           con.log("Couldn't fetch city data, no geolocation possible.");
         }
