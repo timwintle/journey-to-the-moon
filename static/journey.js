@@ -72,9 +72,10 @@
   }
 
   function findCity(lat, lon) {
-    var i, city, d, minD = 10000;
-    if (cityCache[lat + "," + lon] !== undefined) {
-      return cityCache[lat + "," + lon];
+    var i, city, d, cacheKey, minD = 1.0; //distance in degrees
+    cacheKey = lat.toFixed(2) + "," + lon.toFixed(2);
+    if (cityCache[cacheKey] !== undefined) {
+      return cityCache[cacheKey];
     }
 
 
@@ -95,7 +96,7 @@
     if (!city) {
       city = ["Unknown city", lat, lon, "Unknown country"];
     }
-    cityCache[lat + "," + lon] = city;
+    cityCache[cacheKey] = city;
     return city;
   }
 
